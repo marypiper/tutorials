@@ -1,0 +1,393 @@
+----
+title: "Cross-experiment summary: experiment"
+author: "Analyst name"
+contact: analyst_email@hsph.harvard.edu
+project: PI Bulk RNA-seq Analysis
+date: "`r Sys.Date()`"
+output:
+   html_document:
+      code_folding: hide
+      df_print: paged
+      highlights: pygments
+      number_sections: true
+      self_contained: true
+      theme: default
+      toc: true
+      toc_float:
+         collapsed: true
+         smooth_scroll: true
+    fig_width: 6
+    fig_height: 5         
+---
+
+# Overview
+
+- **Principal Investigator:** PI name
+- **Researcher:** Researcher name - often the person of main contact
+- **Experiment:** Experiment description in one sentence
+- **Experimental details:** Important details of the experiment, often acquired during the initial meeting. Could have subsections, such as:
+  
+  - **Hypotheses:**
+  - **Experimental Design:**
+  - **Experimental Goals:**
+  - **Expectations:**
+
+-**DE analysis:** This report is specifically exploring ...
+
+```{r setup, echo = FALSE, cache = FALSE}
+knitr::opts_chunk$set(dev = c('png', 'cairo_pdf'),
+                      fig.align = 'center', 
+                      fig.height = 5, 
+                      fig.width = 7,
+                      pdf.options(encoding = "ISOLatin9.enc"),
+                      fig.path='figures/',
+                      warning=FALSE, 
+                      message=FALSE,
+                      cache = FALSE,
+                      dev = c("png", "pdf"),
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r load-libraries}
+# Load libraries
+library(UpSetR)
+library(SummarizedExperiment)
+library(gridExtra)
+library(DESeq2)
+library(tidyverse)
+library(ggrepel)
+library(viridisLite)
+library(knitr)
+library(DESeq2)
+library(ggrepel)
+library(biomaRt)
+library(pheatmap)
+library(RColorBrewer)
+
+# Set ggplot2 default theme
+ggplot2::theme_set(theme_light(base_size = 14))
+```
+
+## Shared pathways between ...
+
+The plots below shows the processes/pathways shared between both analyses.
+
+```{r upsetr_go_ora}
+# Read in clusterprofiler results for all datasets
+# GO ORA
+dataset1_go_ora <- read.csv(".csv")
+dataset2_go_ora <- read.csv(".csv")
+
+# Create list for upsetr plot
+listInput_go_ora <- list(name1 = as.character(dataset1_go_ora$ID), 
+                         name2 = as.character(dataset1_go_ora$ID))
+
+upset(fromList(listInput_go_ora), order.by = "freq", mainbar.y.label = "Significant GO Processes by ORA", sets.x.label = "Significant GO Terms per Analysis")
+```
+
+```{r upsetr_kegg_ora}
+# KEGG ORA
+dataset1_kegg_ora <- read.csv(".csv")
+dataset2_kegg_ora <- read.csv(".csv")
+
+# Create list for upsetr plot
+listInput_kegg_ora <- list(name1 = as.character(dataset1_kegg_ora$ID), 
+                           name2 = as.character(dataset1_kegg_ora$ID))
+
+upset(fromList(listInput_kegg_ora), order.by = "freq", mainbar.y.label = "Significant KEGG Pathways by ORA", sets.x.label = "Significant KEGG Pathways per Analysis")
+```
+
+```{r upsetr_go_gsea}
+# GO GSEA
+dataset1_go_gsea <- read.csv(".csv")
+dataset2_go_gsea <- read.csv(".csv")
+
+# Create list for upsetr plot
+listInput_go_gsea <- list(name1 = as.character(dataset1_go_gsea$ID), 
+                          name2 = as.character(dataset1_go_gsea$ID))
+
+upset(fromList(listInput_go_gsea), order.by = "freq", mainbar.y.label = "Significant GO Terms by GSEA", sets.x.label = "Significant GO Terms per Analysis")
+```
+
+```{r upsetr_kegg_gsea}
+# KEGG GSEA
+dataset1_kegg_gsea <- read.csv(".csv")
+dataset2_kegg_gsea <- read.csv(".csv")
+
+# Create list for upsetr plot
+listInput <- list(name1 = as.character(dataset1_kegg_gsea$ID), 
+                  name2 = as.character(dataset2_kegg_gsea$ID))
+ 
+
+upset(fromList(listInput), order.by = "freq", mainbar.y.label = "Significant KEGG Pathways by GSEA", sets.x.label = "Significant KEGG Pathways per Analysis")
+```
+
+The table below shows the pathways enriched by GSEA for common to all analyses. The GSEA enrichment scores are given, which show the direction of enrichment (enriched for negative or positive log2 fold changes). 
+
+```{r gsea_all}
+dataset1_kegg_gsea$ID <- as.character(dataset1_kegg_gsea$ID)
+dataset2_kegg_gsea$ID <- as.character(dataset2_kegg_gsea$ID)
+kegg_srebp_dataset2$ID <- as.character(kegg_srebp_dataset2$ID)
+
+both_nrf <- dataset1_kegg_gsea$ID[dataset1_kegg_gsea$ID %in% as.character(dataset2_kegg_gsea$ID)]
+dataset1_kegg_gsea_shared <- dataset1_kegg_gsea[dataset1_kegg_gsea$ID %in% both_nrf, ]
+dataset2_kegg_gsea_shared <- dataset2_kegg_gsea[dataset2_kegg_gsea$ID %in% both_nrf, ]
+
+dataset2_kegg_gsea_shared <- dataset2_kegg_gsea_shared[match(dataset1_kegg_gsea_shared$ID, dataset2_kegg_gsea_shared$ID), ]
+
+both_df <- data.frame(dataset1_kegg_gsea_shared[1:4], dataset2_kegg_gsea_shared[4])
+colnames(both_df)[4] <- "enrichmentScore_nrf_dataset2"
+colnames(both_df)[5] <- "enrichmentScore_nrf_p41"
+
+knitr::kable(both_df)
+```
+
+
+## Combined analyses {.tabset .tabset-fade}
+
+We will explore the biological processes, molecular functions, and cellular components shared between the different analyses.
+
+### Biological process
+
+Next we explore the GO biological processes that are shared between the different analyses; this re-performs the ORA analysis using the significant genes from each analysis, and combines them into a dotplot for ease of visualization. ...
+
+```{r go_combined_bp}
+# Read in the DE genes from both analyses
+dataset1_de <- read.csv("")
+dataset2_de <- read.csv("")
+dataset1_all <- read.csv("")
+
+all_de_lists <- list(dataset1_de = as.character(dataset1_de$ensgene), dataset2_de = as.character(dataset2_de$ensgene))
+
+compGO_bp <- compareCluster(geneCluster = all_de_lists, 
+                         fun = "enrichGO",
+                         universe = as.character(dataset1_all$ensgene),
+                         keyType = "ENSEMBL",
+                         OrgDb = org.Mm.eg.db,
+                         ont = "BP",
+                         qvalueCutoff  = 0.05, 
+                         pAdjustMethod = "BH")
+
+clusterCompGO_results_bp <- compGO_bp@compareClusterResult
+
+dotplot(compGO_bp, showCategory = 50)
+
+```
+
+## Enrichment of processes for DE genes that change in opposite directions {.tabset .tabset-fade}
+
+To try to tease apart the processes if importance, we extracted those differentially expressed genes that were present in all of the analyses, but had pathway changes in opposite directions.
+
+
+## GO terms of interest
+
+We can explore any terms of interest that we want for it's associated genes in all of the analyses. For instance, if I wanted to know which genes in each of the analyses are associated with the GO term 'non-motile cilium', I could provide information like:
+
+### All genes associated with 'non-motile cilium'
+
+```{r go_term_interest_all}
+library(readr)
+## Bimap interface:
+x <- org.Mm.egGO2ALLEGS
+# Get the entrez gene identifiers that are mapped to a GO ID
+mapped_genes <- mappedkeys(x)
+xx <- as.list(x[mapped_genes])
+goids <- xx$`GO:0097730`
+non_motile_cilium <- annotations[annotations$entrezid %in% goids, ]
+
+knitr::kable(non_motile_cilium[1:10, c(1,3,4)], row.names = FALSE)
+
+#write.csv(non_motile_cilium[ , c(1,3,4)], "results/wu_all_non_motile_cilium_terms.csv", quote = F)
+```
+
+[Download list of genes](results/wu_all_non_motile_cilium_terms.csv)
+
+### dataset1 associated with 'non-motile cilium'
+
+```{r go_term_interest_dataset1}
+non_motile_cilium_dataset1 <- dataset1_de[dataset1_de$ensgene %in% non_motile_cilium$gene_id, ] %>%
+        arrange(desc(abs(log2FoldChange)))
+
+knitr::kable(non_motile_cilium_dataset1, row.names = FALSE)
+
+```
+
+### dataset2 genes associated with 'non-motile cilium'
+
+```{r go_term_interest_dataset2}
+non_motile_cilium_dataset2 <- dataset2_de[dataset2_de$ensgene %in% non_motile_cilium$gene_id, ] %>%
+        arrange(desc(abs(log2FoldChange)))
+
+knitr::kable(non_motile_cilium_dataset2, row.names = FALSE)
+
+```
+
+
+
+### Shared processes
+
+Each of the significant pathways identified by GSEA shared between all of the analyses are output below (note the tabs separating the analyses):
+
+```{r shared_kegg_gsea}
+shared_kegg_pathways <- dplyr::intersect(dataset1_entrez_KEGG_gsea_df$ID, dataset2_entrez_KEGG_gsea_df$ID)
+
+```
+
+#### Hepatocellular carcinoma  {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r hep_carc_dataset1}
+## Output images for a single significant KEGG pathway
+pathview(gene.data = dataset1_entrez_ids,
+              pathway.id = shared_kegg_pathways,
+              species = "mmu",
+              limit = list(gene = 2, # value gives the max/min limit for foldchanges
+              cpd = 1),
+         out.suffix = "dataset1")
+
+grid::grid.raster(readPNG("mmu05225.dataset1.png"))
+```
+
+##### dataset2
+
+```{r hep_carc_dataset2}
+## Output images for a single significant KEGG pathway
+pathview(gene.data = dataset2_entrez_ids,
+              pathway.id = shared_kegg_pathways,
+              species = "mmu",
+              limit = list(gene = 2, # value gives the max/min limit for foldchanges
+              cpd = 1),
+         out.suffix = "dataset2")
+
+grid::grid.raster(readPNG("mmu05225.dataset2.png"))
+```
+
+#### Complement and coagulation {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r comp_dataset1}
+grid::grid.raster(readPNG("mmu04610.dataset1.png"))
+```
+
+##### dataset2
+
+```{r comp_dataset2}
+grid::grid.raster(readPNG("mmu04610.dataset2.png"))
+```
+
+#### Glutathione metabolism {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r glut_dataset1}
+grid::grid.raster(readPNG("mmu00480.dataset1.png"))
+```
+
+##### dataset2
+
+```{r glut_dataset2}
+grid::grid.raster(readPNG("mmu00480.dataset2.png"))
+```
+
+#### Osteoclast differentiation {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r ost_diff_dataset1}
+grid::grid.raster(readPNG("mmu04380.dataset1.png"))
+```
+
+##### dataset2
+
+```{r ost_diff_dataset2}
+grid::grid.raster(readPNG("mmu04380.dataset2.png"))
+```
+
+#### Metabolism of xenobiotics by cytochrome P450 {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r xen_dataset1}
+grid::grid.raster(readPNG("mmu00980.dataset1.png"))
+```
+
+##### dataset2
+
+```{r xen_dataset2}
+grid::grid.raster(readPNG("mmu00980.dataset2.png"))
+```
+
+#### Drug metabolism - cytochrome P450 {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r drug_dataset1}
+grid::grid.raster(readPNG("mmu00982.dataset1.png"))
+```
+
+##### dataset2
+
+```{r drug_dataset2}
+grid::grid.raster(readPNG("mmu00982.dataset2.png"))
+```
+
+#### Drug metabolism - other enzymes {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r drug_other_dataset1}
+grid::grid.raster(readPNG("mmu00983.dataset1.png"))
+```
+
+##### dataset2
+
+```{r drug_other_dataset2}
+grid::grid.raster(readPNG("mmu00983.dataset2.png"))
+```
+
+#### Chemical carcinogenesis {.tabset .tabset-fade}
+
+##### dataset1
+
+```{r chem_dataset1}
+grid::grid.raster(readPNG("mmu05204.dataset1.png"))
+```
+
+##### dataset2
+
+```{r chem_dataset2}
+grid::grid.raster(readPNG("mmu05204.dataset2.png"))
+```
+
+
+# Venn diagrams
+
+```{r venn}
+library(VennDiagram)
+library(ggplot2)
+library(tidyverse)
+
+# Create DE venn diagram
+venn.diagram(x <- list(dataset1_de = as.character(dataset1_de$ensgene),
+                       dataset2_de = as.character(ataset1_de$ensgene)),
+             category.names = c("dataset1" , "dataset2"),
+             filename = 'results/venn_all_DE_genes.png',
+          lwd = 1,
+          col=c('blue', 'green'),
+          fill = c(alpha('blue',0.3), 
+                   alpha('green',0.3)),
+          fontfamily = "sans",
+          cat.fontfamily = "sans",
+          margin = 0.03,
+          cat.col = c('blue', 'green'))
+
+```
+
+```{r sessioninfo}
+sessionInfo()
+```
